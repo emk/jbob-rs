@@ -3,87 +3,73 @@
 use std::{
     collections::HashMap,
     fmt,
-    sync::{Arc, Mutex},
+    rc::Rc,
 };
 
-lazy_static! {
-    /// Our table of interned symbols.
-    static ref SYMBOLS: Mutex<HashMap<String, Arc<String>>> =
-        Mutex::new(HashMap::new());
+/// A context represents the internal state of a single-threaded Scheme
+/// interpreter.
+#[derive(Default)]
+pub struct Context {
+    /// All the unique symbols known to our interpreter.
+    symbols: HashMap<String, Value>,
 }
 
-/// A symbol is a unique, tokenized string. We represent them as a ref-counted
-/// string.
-#[derive(Eq)]
-#[cfg_attr(test, derive(Debug))]
-pub struct Symbol(Arc<String>);
-
-impl Symbol {
-    /// Given a string, find the unique symbol corresponding to that string.
-    pub fn intern<S>(s: S) -> Self
-    where
-        S: Into<String>,
-    {
-        let s = s.into();
-        let mut symbols = SYMBOLS.lock().unwrap();
-        let symbol = symbols
-            .entry(s.clone())
-            .or_insert_with(|| Arc::new(s))
-            .to_owned();
-        Symbol(symbol)
-    }
-}
-
-impl fmt::Display for Symbol {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.as_ref().fmt(f)
-    }
-}
-
-impl PartialEq for Symbol {
-    /// Two symbols are equal if they point to the same interned string.
-    fn eq(&self, rhs: &Symbol) -> bool {
-        Arc::ptr_eq(&self.0, &rhs.0)
+impl Context {
+    /// Given a string, find the corresponding unique symbol value.
+    pub fn intern(&mut self, s: &str) -> Value {
+        self.symbols
+            .entry(s.to_owned())
+            .or_insert_with(|| Value::Symbol(Rc::new(s.to_owned())))
+            .to_owned()
     }
 }
 
 /// A Scheme value.
-#[derive(Eq, PartialEq)]
+#[derive(Clone, Eq)]
 #[cfg_attr(test, derive(Debug))]
 pub enum Value {
     /// We store integers as immediate values, without wrapping them in an RC,
     /// because they're cheap to copy.
     Integer(i64),
-    /// Symbols are represented as strings, but they should only be created
-    /// using `Value::symbol("my-string")`. Only one copy of each symbol
-    /// should exist.
-    Symbol(Symbol),
+    /// A symbol is a unique, tokenized string. These should only be created
+    /// using `Context::intern`
+    Symbol(Rc<String>),
     /// The empty list is a special value in Scheme.
     Null,
     /// We represent a cons cell as a pair stored on the heap.
-    Cons(Arc<(Value, Value)>),
+    Cons(Rc<(Value, Value)>),
 }
 
 impl Value {
-    /// Construct a symbol from a string.
-    pub fn symbol<S>(s: S) -> Self
-    where
-        S: Into<String>,
-    {
-        Value::Symbol(Symbol::intern(s))
-    }
-
     /// Constuct a cons cell from two values.
     pub fn cons(car: Value, cdr: Value) -> Self {
-        Value::Cons(Arc::new((car, cdr)))
+        Value::Cons(Rc::new((car, cdr)))
     }
 
     /// Wrap a value `val` as `'(quote val)`.
-    pub fn quote(value: Value) -> Self {
+    pub fn quote(ctx: &mut Context, value: Value) -> Self {
         Value::cons(
-            Value::symbol("quote"),
+            ctx.intern("quote"),
             Value::cons(value, Value::Null),
         )
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, rhs: &Value) -> bool {
+        match (self, rhs) {
+            (Value::Integer(a), Value::Integer(b)) => a == b,
+            // Symbols are equal if they point to the exact same interned
+            // string. We never do a string comparision.
+            (Value::Symbol(a), Value::Symbol(b)) => Rc::ptr_eq(a, b),
+            (Value::Null, Value::Null) => true,
+            (Value::Cons(a), Value::Cons(b)) => {
+                // Optimization: Two `Cons` cells are eqyal if they point
+                // to the same underlying pair, or if they have equal contents.
+                Rc::ptr_eq(a, b) || a == b
+            }
+            (_, _) => false,
+        }
     }
 }
 
@@ -116,16 +102,18 @@ mod tests {
 
     #[test]
     fn value_eq() {
+        let mut ctx = Context::default();
         assert_eq!(Value::Null, Value::Null);
-        assert_eq!(Value::symbol("a"), Value::symbol("a"));
+        assert_eq!(ctx.intern("a"), ctx.intern("a"));
     }
 
     #[test]
     fn quote_value() {
+        let mut ctx = Context::default();
         assert_eq!(
-            Value::quote(Value::Integer(1)),
+            Value::quote(&mut ctx, Value::Integer(1)),
             Value::cons(
-                Value::symbol("quote"),
+                ctx.intern("quote"),
                 Value::cons(Value::Integer(1), Value::Null),
             ),
         );
@@ -133,8 +121,9 @@ mod tests {
 
     #[test]
     fn display_value() {
+        let mut ctx = Context::default();
         let value = Value::cons(
-            Value::cons(Value::Integer(1), Value::symbol("a")),
+            Value::cons(Value::Integer(1), ctx.intern("a")),
             Value::cons(Value::Null, Value::Null),
         );
         assert_eq!(format!("{}", value), "((1 . a) ())");

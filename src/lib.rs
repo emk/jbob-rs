@@ -3,8 +3,6 @@
 
 #![warn(missing_docs)]
 
-#[macro_use]
-extern crate lazy_static;
 extern crate wasm_bindgen;
 
 use wasm_bindgen::prelude::*;
@@ -12,6 +10,7 @@ use wasm_bindgen::prelude::*;
 mod types;
 mod read;
 
+use self::types::Context;
 use self::read::read_str;
 
 /// Our grammar, generated automatically from `grammar.rustpeg` by our
@@ -23,6 +22,7 @@ mod grammar {
 /// Public entry point.
 #[wasm_bindgen]
 pub fn eval_str(name: &str) -> String {
-    let value = read_str(name).unwrap();
+    let mut ctx = Context::default();
+    let value = read_str(&mut ctx, name).unwrap();
     format!("{}", value)
 }
