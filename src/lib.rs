@@ -21,8 +21,8 @@ mod grammar {
 
 /// Public entry point.
 #[wasm_bindgen]
-pub fn eval_str(name: &str) -> String {
+pub fn eval_str(name: &str) -> Result<String, JsValue> {
     let mut ctx = Context::default();
-    let value = read_str(&mut ctx, name).unwrap();
-    format!("{}", value)
+    let value = read_str(&mut ctx, name)?;
+    Ok(format!("{}", value))
 }

@@ -2,9 +2,29 @@
 
 use std::{
     collections::HashMap,
+    error,
     fmt,
     rc::Rc,
 };
+use wasm_bindgen::JsValue;
+
+/// A Scheme runtime error.
+#[derive(Debug)]
+pub struct Error(pub String);
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl error::Error for Error {}
+
+impl From<Error> for JsValue {
+    fn from(err: Error) -> JsValue {
+        err.0.into()
+    }
+}
 
 /// A context represents the internal state of a single-threaded Scheme
 /// interpreter.

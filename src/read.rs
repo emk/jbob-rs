@@ -1,15 +1,33 @@
 //! A primitive Scheme "reader" function.
 
 use grammar;
-use types::{Context, Value};
+use types::{Context, Error, Value};
 
 /// Given a string containing a Scheme data structure, parse it
 /// and return a Scheme value.
 pub(crate) fn read_str(
     ctx: &mut Context,
     input: &str,
-) -> grammar::ParseResult<Value> {
-    grammar::sexpr(input, ctx)
+) -> Result<Value, Error> {
+    grammar::sexpr(input, ctx).map_err(|err| {
+        // Convert 1-based line and column to 0-based numbers.
+        let lineno = err.line.checked_sub(1).expect("no such line 0");
+        let colno = err.column.checked_sub(1).expect("no such column 0");
+
+        // Get the actual source line.
+        let line = input.lines().nth(lineno).expect("line is not in input");
+
+        // Build a pretty error message.
+        let location = format!("{}:{}: ", err.line, err.column);
+        let msg = format!(
+            "parse error, expected one of {:?}\n{}{}\n{}^",
+            err.expected,
+            location,
+            line.trim_right(),
+            " ".repeat(location.len() + colno),
+        );
+        Error(msg)
+    })
 }
 
 #[cfg(test)]
