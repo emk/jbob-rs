@@ -94,6 +94,7 @@ mod test {
         );
 
         assert!(read_sexpr(&mut ctx, "(. 2)").is_err());
+        assert!(read_sexpr(&mut ctx, "(123abc)").is_err());
     }
 
     #[test]
@@ -121,9 +122,9 @@ mod test {
         read_file(&mut ctx, include_str!("scheme/j-bob.scm")).unwrap();
     }
 
-    //#[test]
-    //fn parse_little_prover_source() {
-    //    let mut ctx = Context::default();
-    //    read_file(&mut ctx, include_str!("scheme/little-prover.scm")).unwrap();
-    //}
+    #[test]
+    fn parse_little_prover_source() {
+        let mut ctx = Context::default();
+        read_file(&mut ctx, include_str!("scheme/little-prover.scm")).unwrap();
+    }
 }
