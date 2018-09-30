@@ -10,13 +10,15 @@
 
         <script src="jbob.js"></script>
         <script>
-            const { greet } = wasm_bindgen;
+            const { eval_str } = wasm_bindgen;
 
             function run() {
-                greet("World");
+                console.log("Testing")
+                const result = eval_str("'(+ 1 2)");
+                console.log("Result:", result);
             }
 
-            wasm_bindgen('jbob_bg.wasm').then(run);
+            wasm_bindgen('./jbob_bg.wasm').then(run);
         </script>
     </body>
 </html>

@@ -1,0 +1,42 @@
+use types::Value;
+
+pub sexpr -> Value
+    = ws? value:value ws? { value }
+
+value -> Value
+    = integer / symbol / list / quoted
+
+integer -> Value
+    = int_str:$([-+]?[0-9]+) {?
+        // If this overflows or something, report an error.
+        match int_str.parse() {
+            Ok(i) => Ok(Value::Integer(i)),
+            Err(_) => Err("cannot parse integer"),
+        }
+    }
+
+symbol -> Value
+    = sym:$(initial subsequent* / peculiar_symbol) {
+        Value::symbol(sym)
+    }
+
+initial = [a-zA-z!$%&*/:<=>?^_~]
+subsequent = initial / [-+0-9.@]
+
+// These are special-cased in the R6RS Scheme grammar.
+peculiar_symbol = '+' / '-' / '...' / '->' subsequent*
+
+list -> Value
+    = '(' ws? ')' { Value::Null }
+    / '(' ws? car:value cdr:list_cdr { Value::cons(car, cdr) }
+
+list_cdr -> Value
+    = ws? ')' { Value::Null }
+    / ws '.' ws value:value ws? ')' { value }
+    / ws car:value cdr:list_cdr { Value::cons(car, cdr) }
+
+quoted -> Value
+    = '\'' ws* value:value { Value::quote(value) }
+
+// Whitespace.
+ws = #quiet<[ \n\t]+>

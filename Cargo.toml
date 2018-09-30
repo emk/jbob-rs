@@ -2,6 +2,7 @@
 name = "jbob"
 version = "0.1.0"
 authors = ["Eric Kidd <git@randomhacks.net>"]
+build = "build.rs"
 
 [profile.release]
 # Use various options to cut down binary size.
@@ -12,5 +13,9 @@ panic = "abort"
 [lib]
 crate-type = ["cdylib"]
 
+[build-dependencies]
+peg = "0.5"
+
 [dependencies]
+lazy_static = "1.1.0"
 wasm-bindgen = "0.2"
