@@ -9,12 +9,23 @@
 
         <script src="jbob.js"></script>
         <script>
-            const { eval_str } = wasm_bindgen;
+            const { new_context, read_sexpr, print } = wasm_bindgen;
 
             function run() {
                 console.log("Testing")
-                const result = eval_str("'(+ 1 2)");
-                console.log("Result:", result);
+                const ctx = new_context();
+                try {
+                    const result = read_sexpr(ctx, "'(+ 1 2)");
+                    try {
+                        console.log("Result:", print(ctx, result));
+                    } finally {
+                        result.free();
+                    }
+                } finally {
+                    // Bug: This is not getting exported correctly!
+                    //ctx.free();
+                }
+                console.log("Done");
             }
 
             wasm_bindgen('./jbob_bg.wasm').then(run);

@@ -6,7 +6,7 @@ use std::{
     fmt,
     rc::Rc,
 };
-use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 
 /// A Scheme runtime error.
 #[derive(Debug)]
@@ -28,6 +28,7 @@ impl From<Error> for JsValue {
 
 /// A context represents the internal state of a single-threaded Scheme
 /// interpreter.
+#[wasm_bindgen]
 #[derive(Default)]
 pub struct Context {
     /// All the unique symbols known to our interpreter.
@@ -110,7 +111,7 @@ impl fmt::Display for Value {
                     Value::Null => {}
                     other => { write!(f, " . {}", other)?; }
                 }
-                ")".fmt(f)
+                write!(f, ")")
             }
         }
     }

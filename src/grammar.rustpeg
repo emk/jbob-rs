@@ -2,8 +2,13 @@
 
 use types::{Context, Value};
 
+// Parse a single s-expression.
 pub sexpr -> Value
     = ws? value:value ws? { value }
+
+// Parse a list of top-level s-expressions as a vector.
+pub file -> Vec<Value>
+    = ws? values:(value ** ws) ws? { values }
 
 value -> Value
     = integer / symbol / list / quoted
@@ -41,4 +46,6 @@ quoted -> Value
     = '\'' ws* value:value { Value::quote(ctx, value) }
 
 // Whitespace.
-ws = #quiet<[ \n\t]+>
+ws = #quiet<([ \n\t] / comment )+>
+
+comment = ';' [^\n]* '\n'
