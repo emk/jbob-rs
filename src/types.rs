@@ -1,52 +1,40 @@
 //! Fundamental types for our interpreter.
 
 use std::{
-    collections::HashMap,
-    error,
     fmt,
     rc::Rc,
 };
-use wasm_bindgen::prelude::*;
 
-/// A Scheme runtime error.
-#[derive(Debug)]
-pub struct Error(pub String);
+use context::Context;
+use errors::Error;
+use functions::Function;
 
-impl fmt::Display for Error {
+/// A symbol is a unique string that can be tested for equality using pointer
+/// comparison. It should only be created using `Context::intern`.
+#[derive(Clone, Eq, Hash)]
+#[cfg_attr(test, derive(Debug))]
+pub struct Symbol(pub Rc<String>);
+
+impl Symbol {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl error::Error for Error {}
-
-impl From<Error> for JsValue {
-    fn from(err: Error) -> JsValue {
-        err.0.into()
-    }
-}
-
-/// A context represents the internal state of a single-threaded Scheme
-/// interpreter.
-#[wasm_bindgen]
-#[derive(Default)]
-pub struct Context {
-    /// All the unique symbols known to our interpreter.
-    symbols: HashMap<String, Value>,
-}
-
-impl Context {
-    /// Given a string, find the corresponding unique symbol value.
-    pub fn intern(&mut self, s: &str) -> Value {
-        self.symbols
-            .entry(s.to_owned())
-            .or_insert_with(|| Value::Symbol(Rc::new(s.to_owned())))
-            .to_owned()
+impl PartialEq for Symbol {
+    fn eq(&self, rhs: &Symbol) -> bool {
+        Rc::ptr_eq(&self.0, &rhs.0)
     }
 }
 
 /// A Scheme value.
-#[derive(Clone, Eq)]
+#[derive(Clone)]
 #[cfg_attr(test, derive(Debug))]
 pub enum Value {
     /// We store integers as immediate values, without wrapping them in an RC,
@@ -54,11 +42,13 @@ pub enum Value {
     Integer(i64),
     /// A symbol is a unique, tokenized string. These should only be created
     /// using `Context::intern`
-    Symbol(Rc<String>),
+    Symbol(Symbol),
     /// The empty list is a special value in Scheme.
     Null,
     /// We represent a cons cell as a pair stored on the heap.
     Cons(Rc<(Value, Value)>),
+    /// A Scheme function.
+    Function(Rc<Function>),
 }
 
 impl Value {
@@ -74,21 +64,34 @@ impl Value {
             Value::cons(value, Value::Null),
         )
     }
+
+    /// Return an iterator over a Scheme list.
+    pub fn iter(&self) -> ValueIter {
+        ValueIter { remaining: self.to_owned() }
+    }
+
+    /// If this value is a symbol, return it. Otherwise return an error.
+    pub fn expect_symbol(&self) -> Result<Symbol, Error> {
+        if let Value::Symbol(symbol) = self {
+            Ok(symbol.to_owned())
+        } else {
+            Err(format!("expected symbol, found {}", self).into())
+        }
+    }
 }
 
 impl PartialEq for Value {
     fn eq(&self, rhs: &Value) -> bool {
         match (self, rhs) {
             (Value::Integer(a), Value::Integer(b)) => a == b,
-            // Symbols are equal if they point to the exact same interned
-            // string. We never do a string comparision.
-            (Value::Symbol(a), Value::Symbol(b)) => Rc::ptr_eq(a, b),
+            (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::Null, Value::Null) => true,
             (Value::Cons(a), Value::Cons(b)) => {
-                // Optimization: Two `Cons` cells are eqyal if they point
-                // to the same underlying pair, or if they have equal contents.
+                // Optimization: Two `Cons` cells are equal if they point to the
+                // same underlying pair, or if they have equal contents.
                 Rc::ptr_eq(a, b) || a == b
             }
+            (Value::Function(a), Value::Function(b)) => Rc::ptr_eq(&a, &b),
             (_, _) => false,
         }
     }
@@ -113,12 +116,38 @@ impl fmt::Display for Value {
                 }
                 write!(f, ")")
             }
+            Value::Function(func) => write!(f, "{}", func),
+        }
+    }
+}
+
+/// Iterator over Scheme lists. Will return an error if the final `cdr` is not
+/// `Value::Null`.
+pub struct ValueIter {
+    remaining: Value,
+}
+
+impl Iterator for ValueIter {
+    type Item = Result<Value, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.remaining.clone() {
+            Value::Null => None,
+            Value::Cons(c) => {
+                let (car, cdr) = c.as_ref().to_owned();
+                self.remaining = cdr;
+                Some(Ok(car))
+            }
+            value => {
+                let msg = format!("unexpected value in cdr: {}", value);
+                Some(Err(msg.into()))
+            }
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     #[test]

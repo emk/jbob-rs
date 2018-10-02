@@ -1,7 +1,9 @@
 //! A primitive Scheme "reader" function.
 
+use context::Context;
+use errors::Error;
 use grammar;
-use types::{Context, Error, Value};
+use types::Value;
 
 /// Given a string containing a Scheme data structure, parse it
 /// and return a Scheme value.
@@ -32,14 +34,13 @@ fn pretty_parse_error(input: &str, err: grammar::ParseError) -> Error {
 
     // Build a pretty error message.
     let location = format!("{}:{}: ", err.line, err.column);
-    let msg = format!(
+    format!(
         "parse error, expected one of {:?}\n{}{}\n{}^",
         err.expected,
         location,
         line.trim_right(),
         " ".repeat(location.len() + colno),
-    );
-    Error(msg)
+    ).into()
 }
 
 #[cfg(test)]
@@ -114,17 +115,5 @@ mod test {
             read_file(&mut ctx, "1 2").unwrap(),
             vec![Value::Integer(1), Value::Integer(2)],
         )
-    }
-
-    #[test]
-    fn parse_jbob_source() {
-        let mut ctx = Context::default();
-        read_file(&mut ctx, include_str!("scheme/j-bob.scm")).unwrap();
-    }
-
-    #[test]
-    fn parse_little_prover_source() {
-        let mut ctx = Context::default();
-        read_file(&mut ctx, include_str!("scheme/little-prover.scm")).unwrap();
     }
 }
