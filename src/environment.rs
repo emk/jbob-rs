@@ -16,6 +16,9 @@ pub struct Environment {
 }
 
 impl Environment {
+    /// Consturct a fresh "child" environment, which inherits all the
+    /// definitions in the parent environment, but allows new, local definitions
+    /// to be added.
     pub fn make_child(parent: Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Environment {
             parent: Some(parent),
@@ -23,10 +26,13 @@ impl Environment {
         }))
     }
 
+    /// Define a new binding in this environment.
     pub fn define(&mut self, symbol: Symbol, value: Value) {
         self.bindings.insert(symbol, value);
     }
 
+    /// Look up a binding in either this environment, or in the first ancestor
+    /// environment which contains it.
     pub fn lookup(&self, symbol: &Symbol) -> Option<Value> {
         if let Some(local_value) = self.bindings.get(symbol) {
             Some(local_value.to_owned())

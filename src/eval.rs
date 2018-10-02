@@ -46,21 +46,21 @@ pub fn eval_ast(
         }
         Ast::Define { name, parameters, body } => {
             let body = {
-                let parameters = parameters.to_owned();
                 let mut env = Environment::make_child(env.to_owned());
+                let name = name.to_owned();
+                let parameters = parameters.to_owned();
                 let body = body.to_owned();
                 move |ctx: &mut Context, arguments: &[Value]| {
                     for (param, arg) in parameters.iter().zip(arguments) {
                         env.borrow_mut()
                             .define(param.to_owned(), arg.to_owned());
                     }
-                    eval_ast(ctx, &env, &body)
+                    eval_ast(ctx, &env, &body).map_err(|err| {
+                        format!("error in '{}': {}", name, err).into()
+                    })
                 }
             };
-            let func = Value::Function(Rc::new(
-                Function::new(Some(name.to_owned()), parameters.len(), body)
-            ));
-            env.borrow_mut().define(name.to_owned(), func);
+            Function::define(env, name.to_owned(), parameters.len(), body);
             Ok(Value::Null)
         }
     }
