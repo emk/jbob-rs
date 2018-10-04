@@ -5,7 +5,6 @@ use std::{
     collections::HashMap,
     rc::Rc,
 };
-use wasm_bindgen::prelude::*;
 
 use ast::Ast;
 use errors::Error;
@@ -17,7 +16,6 @@ use types::{Symbol, Value};
 
 /// A context represents the internal state of a single-threaded Scheme
 /// interpreter.
-#[wasm_bindgen]
 pub struct Context {
     /// All the unique symbols known to our interpreter.
     symbols: HashMap<String, Symbol>,

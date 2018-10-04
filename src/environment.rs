@@ -10,6 +10,7 @@ use types::{Symbol, Value};
 
 /// A mapping between variables and values.
 #[derive(Default)]
+#[cfg_attr(test, derive(Debug))]
 pub struct Environment {
     parent: Option<Rc<RefCell<Environment>>>,
     bindings: HashMap<Symbol, Value>,

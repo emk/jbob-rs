@@ -7,7 +7,6 @@ use types::Value;
 
 /// Given a string containing a Scheme data structure, parse it
 /// and return a Scheme value.
-#[allow(dead_code)]
 pub fn read_sexpr(
     ctx: &mut Context,
     input: &str,

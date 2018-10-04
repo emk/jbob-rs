@@ -128,6 +128,13 @@ pub fn add_prelude_functions(ctx: &mut Context) {
     Function::define(&env, ctx.intern_symbol("<"), 2, |ctx, args| {
         Ok(ctx.bool_value(num(&args[0]) < num(&args[1])))
     });
+
+    ctx.eval_file("
+    (defun size (x)
+      (if (atom x)
+        '0
+        (+ '1 (+ (size (car x)) (size (cdr x))))))
+    ").unwrap();
 }
 
 /// If `value` is an integer, return it. Otherwise, return 0. This is for

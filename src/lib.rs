@@ -5,7 +5,7 @@
 
 extern crate wasm_bindgen;
 
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use wasm_bindgen::prelude::*;
 
 mod ast;
@@ -20,24 +20,32 @@ mod types;
 use context::Context;
 use types::Value;
 
+/// The source code to the J-Bob proof assistant.
+const JBOB_SOURCE: &str = include_str!("scheme/j-bob.scm");
+// The source code to the Little Prover book.
+const LITTLE_PROVER_SOURCE: &str = include_str!("scheme/little-prover.scm");
+
 /// Our grammar, generated automatically from `grammar.rustpeg` by our
 /// `build.rs` script using `rustpeg`.
 mod grammar {
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
 }
 
-/// Create a new Scheme execution context.
-#[wasm_bindgen]
-pub fn new_context() -> Context {
-    Context::default()
-}
-
 /// `#[wasm_bindgen]` can't pass Rust-style `enum` values to JavaScript, so
 /// just put a trivial wrapper around it.
 #[wasm_bindgen]
-pub struct Wrapped(Value);
+pub struct JBobValue(Value);
 
-impl Deref for Wrapped {
+#[wasm_bindgen]
+impl JBobValue {
+    /// Format this value as a string.
+    #[wasm_bindgen(js_name = toString)]
+    pub fn to_string(&self) -> String {
+        format!("{}", self.deref())
+    }
+}
+
+impl Deref for JBobValue {
     type Target = Value;
 
     fn deref(&self) -> &Value {
@@ -45,20 +53,61 @@ impl Deref for Wrapped {
     }
 }
 
-/// Evaluate a string as Scheme source code, updating `ctx` accordingly and
-/// returning the final value.
+/// The interpreter context for a single threaded interpreter. This contains
+/// global definitions, etc.
 #[wasm_bindgen]
-pub fn eval_file(
-    ctx: &mut Context,
-    input: &str,
-) -> Result<Wrapped, JsValue> {
-    Ok(Wrapped(ctx.eval_file(input)?))
+#[derive(Default)]
+pub struct JBobContext(Context);
+
+impl Deref for JBobContext {
+    type Target = Context;
+
+    fn deref(&self) -> &Context {
+        &self.0
+    }
 }
 
-/// Public entry point.
+impl DerefMut for JBobContext {
+    fn deref_mut(&mut self) -> &mut Context {
+        &mut self.0
+    }
+}
+
 #[wasm_bindgen]
-pub fn print(_ctx: &mut Context, value: &Wrapped) -> String {
-    format!("{}", value.deref())
+impl JBobContext {
+    /// Create a new `JBobContext`.
+    ///
+    /// `#[wasm_bindgen(constructor)]` is disabled pending
+    /// https://github.com/rustwasm/wasm-bindgen/issues/917.
+    pub fn new() -> JBobContext {
+        Self::default()
+    }
+
+    /// Load the J-Bob source code into the context.
+    #[wasm_bindgen(js_name = requireJBob)]
+    pub fn require_jbob(&mut self) -> Result<(), JsValue> {
+        self.eval_file(JBOB_SOURCE)?;
+        Ok(())
+    }
+
+    /// Load the source code from _The Little Prover_ into the context.
+    #[wasm_bindgen(js_name = requireLittleProver)]
+    pub fn require_little_prover(&mut self) -> Result<(), JsValue> {
+        self.eval_file(LITTLE_PROVER_SOURCE)?;
+        Ok(())
+    }
+
+    /// Is the supplied string a valid s-expression?
+    #[wasm_bindgen(js_name = isValidSExpr)]
+    pub fn is_valid_sexpr(&mut self, input: &str) -> bool {
+        read::read_sexpr(&mut self.0, input).is_ok()
+    }
+
+    /// Evaluate a string as Scheme source code, updating `ctx` accordingly and
+    /// returning the final value.
+    pub fn eval(&mut self, input: &str) -> Result<JBobValue, JsValue> {
+        Ok(JBobValue(self.eval_file(input)?))
+    }
 }
 
 #[cfg(test)]
@@ -114,30 +163,33 @@ mod test {
     }
 
     #[test]
-    fn jbob() {
+    fn recursion_size() {
         let mut ctx = Context::default();
-        ctx.eval_file(include_str!("scheme/j-bob.scm")).unwrap();
+        assert_eval_eq!(&mut ctx, "(if (atom '(1 2)) '0 (+ '1 (+ (size (car '(1 2))) (size (cdr '(1 2))))))", "2");
+        assert_eval_eq!(&mut ctx, "(size '(1 2))", "2");
+    }
+
+    #[test]
+    fn jbob() {
+        let mut ctx = JBobContext::default();
+        ctx.require_jbob().unwrap();
     }
 
     #[test]
     fn little_prover_quick() {
-        let mut ctx = Context::default();
-        ctx.eval_file(include_str!("scheme/j-bob.scm")).unwrap();
-        ctx.eval_file(include_str!("scheme/little-prover.scm")).unwrap();
+        let mut ctx = JBobContext::default();
+        ctx.require_jbob().unwrap();
+        ctx.require_little_prover().unwrap();
         assert_eval_eq!(&mut ctx, "(chapter1.example1)", "''ham");
     }
 
     #[test]
     #[ignore]
     fn little_prover_align_align() {
-        let mut ctx = Context::default();
-        ctx.eval_file(include_str!("scheme/j-bob.scm")).unwrap();
-        ctx.eval_file(include_str!("scheme/little-prover.scm")).unwrap();
+        let mut ctx = JBobContext::default();
+        ctx.require_jbob().unwrap();
+        ctx.require_little_prover().unwrap();
         let expected = include_str!("scheme/align-align-result.scm");
-        assert_eval_eq!(
-            &mut ctx,
-            "(dethm.align/align)",
-            expected
-        );
+        assert_eval_eq!(&mut ctx, "(dethm.align/align)", expected);
     }
 }

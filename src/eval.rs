@@ -46,11 +46,12 @@ pub fn eval_ast(
         }
         Ast::Define { name, parameters, body } => {
             let body = {
-                let mut env = Environment::make_child(env.to_owned());
+                let env = env.to_owned();
                 let name = name.to_owned();
                 let parameters = parameters.to_owned();
                 let body = body.to_owned();
                 move |ctx: &mut Context, arguments: &[Value]| {
+                    let env = Environment::make_child(env.clone());
                     for (param, arg) in parameters.iter().zip(arguments) {
                         env.borrow_mut()
                             .define(param.to_owned(), arg.to_owned());

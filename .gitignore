@@ -1,4 +1,10 @@
 /target
 **/*.rs.bk
-Cargo.lock
-/out
+/.cache
+/dist
+/node_modules
+/callgrind.out
+/site/*bundle.js
+/site/jbob.js
+*.wasm
+*.d.ts

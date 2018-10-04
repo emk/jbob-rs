@@ -1,6 +1,11 @@
 # Makefile for building WASM version of this code.
 
-all: out/jbob.js out/index.html
+all: webpack
+
+# Install our JS dependencies using YARN.
+yarn:
+	yarn install
+.PHONY: yarn
 
 # Use cargo to build our bare wasm module. We mark this as ".PHONY" to ensure
 # that even if the output file exists, cargo always gets called to do its own
@@ -10,16 +15,23 @@ target/wasm32-unknown-unknown/release/jbob.wasm:
 .PHONY: target/wasm32-unknown-unknown/release/jbob.wasm
 
 # Use wasm-bindgen to wrap our bare wasm module into something callable from JS.
-out/jbob.js: target/wasm32-unknown-unknown/release/jbob.wasm out
-	wasm-bindgen $< --out-dir out --no-modules
+site/jbob_bg.wasm: target/wasm32-unknown-unknown/release/jbob.wasm
+	wasm-bindgen --out-dir site --browser $<
 
-# Copy our demo HTML file to our output.
-out/index.html: src/static/index.html out
-	cp $< $@
+# Compile our JS/TS code into an actual bundle.
+webpack: site/jbob_bg.wasm
+	node_modules/.bin/webpack-cli
+.PHONY: webpack
 
-# Make sure we have our output directory.
-out:
-	mkdir -p out
+# Serve up our rendered site.
+serve:
+	(cd site; python -m SimpleHTTPServer)
+
+# Profile (dethm.align/align) with our interpreter.
+profile:
+	cargo build --release --example dethm-align-align
+	cargo profiler callgrind --release --bin target/release/examples/dethm-align-align
+.PHONY: profile
 
 # Clean up all build output.
 clean:

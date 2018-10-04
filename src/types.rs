@@ -1,6 +1,7 @@
 //! Fundamental types for our interpreter.
 
 use std::{
+    hash::{Hash, Hasher},
     fmt,
     rc::Rc,
 };
@@ -11,7 +12,7 @@ use functions::Function;
 
 /// A symbol is a unique string that can be tested for equality using pointer
 /// comparison. It should only be created using `Context::intern`.
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq)]
 #[cfg_attr(test, derive(Debug))]
 pub struct Symbol(pub Rc<String>);
 
@@ -24,6 +25,15 @@ impl Symbol {
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl Hash for Symbol {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Hash the pointer, not the string. This is OK because symbols use
+        // pointer equality.
+        let ptr = &self.0.as_ref().as_bytes()[0] as *const u8;
+        ptr.hash(state)
     }
 }
 
